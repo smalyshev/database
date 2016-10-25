@@ -26,8 +26,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 package com.bigdata.rdf.internal.encoder;
-import org.openrdf.model.BNode;
-import org.openrdf.model.Literal;
 
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -57,9 +55,6 @@ import com.bigdata.rdf.model.BigdataLiteralImpl;
 import com.bigdata.rdf.model.BigdataURIImpl;
 import com.bigdata.rdf.model.BigdataValue;
 import com.bigdata.rdf.model.BigdataValueFactory;
-import com.bigdata.rdf.internal.INonInlineExtensionCodes;
-import com.bigdata.rdf.internal.impl.AbstractNonInlineExtensionIVWithDelegateIV;
-import com.bigdata.rdf.internal.impl.PartlyInlineValueIV;
 
 /**
  * A utility class for generating and processing compact representations of
@@ -67,7 +62,7 @@ import com.bigdata.rdf.internal.impl.PartlyInlineValueIV;
  * Individual {@link IV}s may be associated with a cached RDF {@link Value}.
  * <p>
  * Note: This implementation does NOT maintain the {@link IVCache} associations.
- *
+ * 
  * @author <a href="mailto:thompsonbry@users.sourceforge.net">Bryan Thompson</a>
  * @version $Id: IVBindingSetEncoder.java 6032 2012-02-16 12:48:04Z thompsonbry
  *          $
@@ -79,7 +74,7 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
      * Value factory
      */
     protected final BigdataValueFactory vf;
-
+    
     /**
      * <code>true</code> iff this is in support of a DISTINCT filter.
      * <p>
@@ -87,7 +82,7 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
      * since the original solutions flow through the filter.
      */
     protected final boolean filter;
-
+    
     /**
      * The schema provides the order in which the {@link IV}[] for solutions
      * stored in the hash index are encoded in the {@link HTree}. {@link IV}
@@ -99,14 +94,14 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
      * variables may be discovered at any point.
      */
     private final LinkedHashSet<IVariable<?>> schema;
+    
 
-
-
+    
     /**
      * Used to encode the {@link IV}s.
      */
     private final IKeyBuilder keyBuilder;
-
+    
     /**
      * @param store the backing store
      * @param filter
@@ -119,9 +114,9 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
     public IVBindingSetEncoder(final BigdataValueFactory vf, final boolean filter) {
 
         this.vf = vf;
-
+        
         this.filter = filter;
-
+        
         this.schema = new LinkedHashSet<IVariable<?>>();
 
         this.keyBuilder = new ASCIIKeyBuilderFactory(128).getKeyBuilder();
@@ -135,15 +130,15 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
      */
     @Override
     public boolean isValueCache() {
-
+        
         return false;
-
+        
     }
 
     /**
      * Build up the schema based on variables that are actually bound in the
      * observed bindings.
-     *
+     * 
      * @param bset
      *            An observed binding set.
      */
@@ -166,14 +161,14 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
         return encodeSolution(bset, true/* updateCache */);
 
     }
-
+    
     @Override
     public byte[] encodeSolution(final IBindingSet bset,
             final boolean updateCache) {
 
         if(bset == null)
             throw new IllegalArgumentException();
-
+        
         /*
          * Before we can encode the binding set, we need to update the schema
          * such that it captures any variables used in the binding set (plus
@@ -196,92 +191,81 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
                 IVUtility.encode(keyBuilder, TermId.NullIV);
             } else {
                 final IV<?, ?> iv = c.get();
-
-                if (iv.hasValue()) {
+                
+                if (iv.isNullIV()) {
 
                     /**
                      * BLZG-611 (https://jira.blazegraph.com/browse/BLZG-611):
                      * we need to properly encode (and later on, decode)
-                     * mocked IVs, which have either been constructed at runtime or
+                     * mocked IVs, which have either been constructed at runtime or 
                      * represent values that are not present in the database. We do
                      * this by wrapping fully inlined IV types (for URIs, literals,
                      * or blank nodes) into MockedValueIV, which will be properly
                      * decoded as a mocked IV later on.
                      */
                     final Object val = iv.getValue();
-
+                    
                     final IV<?,?> ivToEncode;
                     if (val instanceof BigdataURIImpl) {
 
                         // create fully inlined URI IV
                         ivToEncode = new FullyInlineURIIV<>((BigdataURIImpl)val);
-
+                        
                     } else if (val instanceof BigdataLiteralImpl) {
-
+                        
                         // create fully inlined literal IV
                         final BigdataLiteralImpl valAsLiteral = (BigdataLiteralImpl)val;
-                        ivToEncode =
+                        ivToEncode = 
                             new FullyInlineTypedLiteralIV<>(
-                                valAsLiteral.getLabel(),
+                                valAsLiteral.getLabel(), 
                                 ((BigdataLiteralImpl) val).getLanguage(),
                                 ((BigdataLiteralImpl) val).getDatatype());
-
+                        
                     } else if (val instanceof BigdataBNodeImpl) {
 
                         // create fully inlined blank node IV
                         final BigdataBNodeImpl valAsBNode = (BigdataBNodeImpl)val;
                         ivToEncode = new FullyInlineUnicodeBNodeIV<>(valAsBNode.getID());
-
+                        
                     } else {
-
+                        
                         // unreachable code, just in case...
                         throw new IllegalArgumentException("Uncovered iv.getValue() type in encode.");
                     }
 
-                    if (iv.isNullIV()) {
-
-                            IVUtility.encode(keyBuilder, new MockedValueIV(ivToEncode));
-
-                    } else {
-
-                            IV delegate = new PartlyInlineValueIV(new MockedValueIV(ivToEncode), iv);
-
-                            IVUtility.encode(keyBuilder, delegate);
-
-                            cacheSchemaAndValue(v, delegate, updateCache); // caching hook
-
-                    }
+                    IVUtility.encode(keyBuilder, new MockedValueIV(ivToEncode));
+                    
                 } else {
-
+                    
                     IVUtility.encode(keyBuilder, iv);
-
+                    
                     cacheSchemaAndValue(v, iv, updateCache); // caching hook
-
+                    
                 }
 
             }
         }
-
+        
         return keyBuilder.getKey();
-
+        
     }
 
     /**
      * Hook method to trigger caching of variable and the value. May be
      * re-implemented in subclasses to batch values, see {@link IVBindingSetEncoderWithIVCache}.
-     *
+     * 
      * @param iv
      * @param v
      */
     void cacheSchemaAndValue(final IVariable<?> v, final IV<?,?> iv, final boolean updateCache) {
         // NOP
     }
-
+    
     @Override
     public void flush() {
         // NOP
     }
-
+    
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public IBindingSet decodeSolution(final byte[] val, final int off,
@@ -303,31 +287,15 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
                 break;
             }
 
-            IV iv = ivs[i++];
-
+            final IV<?, ?> iv = ivs[i++];
+            
             if (iv == null) {
-
+            
                 // Not bound.
                 continue;
-
+                
             }
-
-            if (iv instanceof PartlyInlineValueIV) {
-                    IV delegate = ((PartlyInlineValueIV)iv).getDelegate();
-                    IV eiv = ((PartlyInlineValueIV)iv).getExtensionIV();
-                    IV value = (((MockedValueIV)delegate).getIV());
-                    if (value instanceof URI) {
-                        eiv.setValue(vf.createURI(((URI)value).stringValue()));
-                    } else  if (value instanceof Literal) {
-                        Literal literal = (Literal)value;
-                        eiv.setValue(vf.createLiteral(literal.stringValue(), literal.getDatatype(), literal.getLanguage()));
-                    } else  if (value instanceof BNode) {
-                       BNode bNode = (BNode)value;
-                        eiv.setValue(vf.createBNode(bNode.getID()));
-                    }
-            }
-
-
+            
             /**
              * BLZG-611 (https://jira.blazegraph.com/browse/BLZG-611):
              * decoding of MockeedValueIV, see encodeSolution() for more information.
@@ -336,39 +304,39 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
 
                 final MockedValueIV mvIv = (MockedValueIV)iv;
                 final IV<?,?> innerIv = mvIv.getIV();
-
+                
                 final BigdataValue value; // set inside subsequent if block
                 final TermId mockIv; // populated subsequently
                 if (innerIv instanceof FullyInlineURIIV) {
-
+                    
                     final FullyInlineURIIV innerIvAsUri = (FullyInlineURIIV)innerIv;
-
+                    
                     final URI inlineUri = innerIvAsUri.getInlineValue();
-
+                    
                     value = vf.createURI(inlineUri.stringValue());
                     mockIv = TermId.mockIV(VTE.URI);
-
+                    
                 } else if (innerIv instanceof FullyInlineTypedLiteralIV) {
 
-                    final FullyInlineTypedLiteralIV innerIvAsLiteral =
+                    final FullyInlineTypedLiteralIV innerIvAsLiteral = 
                         (FullyInlineTypedLiteralIV)innerIv;
 
                     value = vf.createLiteral(
-                            innerIvAsLiteral.getLabel(),
-                            innerIvAsLiteral.getDatatype(),
+                            innerIvAsLiteral.getLabel(), 
+                            innerIvAsLiteral.getDatatype(), 
                             innerIvAsLiteral.getLanguage());
                     mockIv = TermId.mockIV(VTE.LITERAL);
 
                 } else if (innerIv instanceof FullyInlineUnicodeBNodeIV) {
-
-                    final FullyInlineUnicodeBNodeIV innerIvAsBNode =
+                    
+                    final FullyInlineUnicodeBNodeIV innerIvAsBNode = 
                             (FullyInlineUnicodeBNodeIV)innerIv;
 
                     value = vf.createBNode(innerIvAsBNode.getID());
                     mockIv = TermId.mockIV(VTE.BNODE);
 
                 } else {
-
+                    
                     // unreachable code, just in case...
                     throw new IllegalArgumentException("Uncovered inner IV type in decode");
                 }
@@ -380,12 +348,12 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
                 bset.set(v, new Constant<IV<?, ?>>(mockIv));
 
             } else {
-
+                
                 bset.set(v, new Constant<IV<?, ?>>(iv));
-
+                
             }
         }
-
+        
         if(resolveCachedValues)
             resolveCachedValues(bset);
 
@@ -403,12 +371,12 @@ public class IVBindingSetEncoder implements IBindingSetEncoder,
     public void resolveCachedValues(final IBindingSet bset) {
 
         // NOP
-
+        
     }
-
+    
     @Override
     public void release() {
-
+        
         schema.clear();
 
     }

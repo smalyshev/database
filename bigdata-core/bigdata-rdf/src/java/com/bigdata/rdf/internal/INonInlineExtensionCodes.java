@@ -38,12 +38,12 @@ import com.bigdata.rdf.internal.impl.uri.PartlyInlineURIIV;
  * Note: Negative codes are used for extension types for which an extension
  * {@link IV} follows the extension byte. Positive codes are used for extension
  * types where the data immediately follows the extension byte.
- *
+ * 
  * @author <a href="mailto:thompsonbry@users.sourceforge.net">Bryan Thompson</a>
  * @version $Id$
  */
 public interface INonInlineExtensionCodes {
-
+    
     /**
      * @see BlobIV
      */
@@ -58,10 +58,5 @@ public interface INonInlineExtensionCodes {
      * @see PartlyInlineTypedLiteralIV
      */
     final byte LiteralDatatypeIV = -2;
-
-    /**
-     * @see PartlyInlineValueIV
-     */
-    final byte ValueIV = -3;
 
 }
