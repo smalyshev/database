@@ -1,12 +1,9 @@
 /**
    Copyright (C) SYSTAP, LLC 2006-2012.  All rights reserved.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -38,29 +35,33 @@ public class Expanderator extends Prefetch implements ITailOp {
 	// -------------------------------------------------------------
 
 	protected Object getNext() {
-		if (m_child != null && m_child.hasNext()) {
-			final Object ret = m_child.next();
-			
-			// experimental tail optimisation
-			if (m_child instanceof ITailOp) {
-				m_child = ((ITailOp) m_child).availableTailOp();
-			}
+		while (true) { // avoid previous simple recursive call (issue#376)
+			if (m_child != null && m_child.hasNext()) {
+				final Object ret = m_child.next();
 
-			return ret;
-		} else {
-			if (m_child != null && m_contextMgr != null)
-				m_contextMgr.popContext();
-			
-			if (m_src.hasNext()) {
-				final Object nxt = m_src.next();
-				if (m_contextMgr != null)
-					m_contextMgr.pushContext(nxt);
-				
-				m_child = m_expander.expand(nxt);
+				// experimental tail optimisation
+				if (m_child instanceof ITailOp) {
+					m_child = ((ITailOp) m_child).availableTailOp();
+				}
 
-				return getNext();
+				return ret;
 			} else {
-				return null;
+				if (m_child != null && m_contextMgr != null)
+					m_contextMgr.popContext();
+
+				if (m_src.hasNext()) {
+					final Object nxt = m_src.next();
+					if (m_contextMgr != null)
+						m_contextMgr.pushContext(nxt);
+
+					m_child = m_expander.expand(nxt);
+
+					// Avoid unnecessary stack growth
+					// return getNext();
+					continue;
+				} else {
+					return null;
+				}
 			}
 		}
 	}
